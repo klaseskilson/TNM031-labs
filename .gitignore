@@ -14,3 +14,7 @@ hs_err_pid*
 # ignore intellij idea files
 *.idea/
 *.iml
+
+# ignore finder files
+.DS_Store
+

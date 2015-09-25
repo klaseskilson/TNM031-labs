@@ -1,5 +1,3 @@
-import com.sun.javafx.event.CompositeEventTarget;
-
 import java.math.BigInteger;
 import java.util.Random;
 
@@ -8,9 +6,8 @@ import java.util.Random;
  */
 
 public class RSA {
-    final static int KEYSIZE = 1024;
-    final static int BIT_LENGTH = 1024;
-    final static int EXPONENT_BIT_LENGTH = 1024;
+    final static int BIT_LENGTH = 2048;
+    final static int EXPONENT_BIT_LENGTH = 2048;
 
     private BigInteger n, e, d;
 
