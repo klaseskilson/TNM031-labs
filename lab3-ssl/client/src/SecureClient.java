@@ -1,10 +1,6 @@
 import javax.net.ssl.*;
-import java.io.BufferedReader;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.InetAddress;
-import java.nio.Buffer;
 import java.security.KeyStore;
 
 public class SecureClient {
@@ -14,6 +10,7 @@ public class SecureClient {
     final static String LABSTOREPASSWD = "somekey";
     final static String LABALIASPASSWD = "somekey";
     final static String TERMINATE_CONNECTION = "";
+    final static String END_COMMAND = "cmd:end";
 
     private InetAddress hostAddr;
     private int hostPort;
@@ -71,6 +68,7 @@ public class SecureClient {
             // connect and print result!
             socketOut.println("cmd:add");
             socketOut.println(numbers);
+            socketOut.println("cmd:end");
             System.out.println(socketIn.readLine());
         } catch (Exception e) {
             System.out.println(e);
@@ -78,10 +76,47 @@ public class SecureClient {
         }
     }
 
-    public void upload(String fileName, String fileContent) {
+    public void upload(String fileName) {
         try {
             socketOut.println("cmd:upload");
+            socketOut.println(fileName);
 
+            try (BufferedReader reader = new BufferedReader(
+                    new FileReader("files/" + fileName))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    socketOut.println(line);
+                }
+            } catch (IOException ioe) {
+                System.out.println(ioe);
+                ioe.printStackTrace();
+            }
+
+            socketOut.println(END_COMMAND);
+        } catch (Exception e) {
+            System.out.println(e);
+            e.printStackTrace();
+        }
+    }
+
+    public void download(String fileName) {
+        try {
+            socketOut.println("cmd:download");
+            socketOut.println(fileName);
+
+            socketOut.println(END_COMMAND);
+        } catch (Exception e) {
+            System.out.println(e);
+            e.printStackTrace();
+        }
+    }
+
+    public void delete(String fileName) {
+        try {
+            socketOut.println("cmd:delete");
+            socketOut.println(fileName);
+
+            socketOut.println(END_COMMAND);
         } catch (Exception e) {
             System.out.println(e);
             e.printStackTrace();
