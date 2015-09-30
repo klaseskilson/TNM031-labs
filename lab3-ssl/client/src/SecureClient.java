@@ -62,20 +62,6 @@ public class SecureClient {
         }
     }
 
-    public void add(String numbers) {
-        try {
-            System.out.println("Adding numbers " + numbers + " together");
-            // connect and print result!
-            socketOut.println("cmd:add");
-            socketOut.println(numbers);
-            socketOut.println("cmd:end");
-            System.out.println(socketIn.readLine());
-        } catch (Exception e) {
-            System.out.println(e);
-            e.printStackTrace();
-        }
-    }
-
     public void upload(String fileName) {
         try {
             socketOut.println("cmd:upload");
@@ -101,10 +87,26 @@ public class SecureClient {
 
     public void download(String fileName) {
         try {
+            // send download command and file name
             socketOut.println("cmd:download");
             socketOut.println(fileName);
-
             socketOut.println(END_COMMAND);
+
+            // receive file
+            String str;
+            StringBuilder fileContent = new StringBuilder();
+            while (!(str = socketIn.readLine()).equals(END_COMMAND)) {
+                fileContent.append(str + "\n");
+            }
+
+            // write to file
+            String file = fileContent.toString();
+            try (BufferedWriter writer = new BufferedWriter(
+                    new FileWriter("files/" + fileName))) {
+                writer.write(file, 0, file.length());
+            } catch (IOException x) {
+                System.err.format("IOException: %s%n", x);
+            }
         } catch (Exception e) {
             System.out.println(e);
             e.printStackTrace();
@@ -115,8 +117,8 @@ public class SecureClient {
         try {
             socketOut.println("cmd:delete");
             socketOut.println(fileName);
-
             socketOut.println(END_COMMAND);
+            System.out.println(socketIn.readLine());
         } catch (Exception e) {
             System.out.println(e);
             e.printStackTrace();

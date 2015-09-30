@@ -1,5 +1,8 @@
 import javax.net.ssl.*;
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.security.KeyStore;
 import java.util.StringTokenizer;
 
@@ -11,8 +14,9 @@ public class SecureServer {
     static final String LABTRUSTSTORE = "./assets/LABtruststore.ks";
     static final String LABSTOREPASSWD = "somekey";
     static final String LABALIASPASSWD = "somekey";
-    final static String TERMINATE_CONNECTION = "";
-    final static String END_COMMAND = "cmd:end";
+    static final String TERMINATE_CONNECTION = "";
+    static final String END_COMMAND = "cmd:end";
+    static final String FOLDER = "files/";
 
     BufferedReader inputStream;
     PrintWriter outputStream;
@@ -71,9 +75,6 @@ public class SecureServer {
             while (!(str = inputStream.readLine()).equals(TERMINATE_CONNECTION)) {
                 System.out.println(str);
                 switch (str) {
-                    case "cmd:add":
-                        add();
-                        break;
                     case "cmd:upload":
                         receiveFromClient();
                         break;
@@ -95,37 +96,25 @@ public class SecureServer {
         }
     }
 
-    private void add() {
-
-        try {
-            String str;
-            double result = 0;
-            while (!(str = inputStream.readLine()).equals(END_COMMAND)) {
-                StringTokenizer st = new StringTokenizer(str);
-
-                try {
-                    while (st.hasMoreTokens()) {
-                        result += new Double(st.nextToken());
-                    }
-                    outputStream.println("The result is " + result);
-                } catch (NumberFormatException nfe) {
-                    outputStream.println("Weird format");
-                }
-            }
-        } catch (Exception e) {
-            outputStream.println("Something went wrong");
-            System.out.println(e);
-            e.printStackTrace();
-        }
-    }
-
     private void delete() {
         try {
             String str;
+            String fileName = null;
             while (!(str = inputStream.readLine()).equals(END_COMMAND)) {
-                outputStream.println("calling delete ");
-                System.out.println(str);
+                fileName = str;
             }
+
+            if (fileName != null) {
+                try {
+                    File file = new File(FOLDER + fileName);
+                    if (file.delete()) {
+                        outputStream.println("deleted");
+                    }
+                } catch (Exception e) {
+                    outputStream.println("not deleted");
+                }
+            }
+
         } catch (Exception e) {
             outputStream.println("Something went wrong");
             System.out.println(e);
@@ -134,13 +123,20 @@ public class SecureServer {
     }
 
     private void sendToClient() {
+        System.out.println("Sending to client");
         try {
             String str;
+            String fileName = null;
             while (!(str = inputStream.readLine()).equals(END_COMMAND)) {
-                // recieve filename
-                String fileName = str;
+                // receive filename
+                fileName = str;
+                System.out.println("filename: " + fileName);
+            }
+
+            if (fileName != null) {
+                // read file and send it
                 try (BufferedReader reader = new BufferedReader(
-                        new FileReader("files/" + fileName))) {
+                        new FileReader(FOLDER + fileName))) {
                     // read file and send it to client
                     String line;
                     while ((line = reader.readLine()) != null) {
@@ -152,6 +148,10 @@ public class SecureServer {
                     ioe.printStackTrace();
                 }
             }
+            System.out.println("ending, file sent");
+
+            // notify client end of file transmission
+            outputStream.println(END_COMMAND);
         } catch (Exception e) {
             outputStream.println("Something went wrong");
             System.out.println(e);
@@ -161,14 +161,12 @@ public class SecureServer {
 
     private void receiveFromClient() {
         try {
+            System.out.println("client -> server");
             StringBuilder fileContent = new StringBuilder();
             String fileName = null;
             String str;
             while (!(str = inputStream.readLine()).equals(END_COMMAND)) {
-                outputStream.println("calling receiveFromClient ");
-                System.out.println(str);
-
-                // if dont have a file name
+                // use first line as file name
                 if (fileName == null) {
                     fileName = str;
                 } else {
@@ -176,14 +174,17 @@ public class SecureServer {
                 }
             }
 
+            System.out.println("filename: " + fileName);
+
             // write to file
             String file = fileContent.toString();
             try (BufferedWriter writer = new BufferedWriter(
-                    new FileWriter("files/" + fileName))) {
+                    new FileWriter(FOLDER + fileName))) {
                 writer.write(file, 0, file.length());
             } catch (IOException x) {
                 System.err.format("IOException: %s%n", x);
             }
+            System.out.println("DONE client -> server");
         } catch (Exception e) {
             outputStream.println("Something went wrong");
             System.out.println(e);
