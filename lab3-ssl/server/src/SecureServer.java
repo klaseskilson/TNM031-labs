@@ -15,6 +15,9 @@ public class SecureServer {
     static final String LABSTOREPASSWD = "somekey";
     static final String LABALIASPASSWD = "somekey";
     static final String TERMINATE_CONNECTION = "";
+    static final String DELETE_COMMAND = "cmd:delete";
+    static final String UPLOAD_COMMAND = "cmd:upload";
+    static final String DOWNLOAD_COMMAND = "cmd:download";
     static final String END_COMMAND = "cmd:end";
     static final String FOLDER = "files/";
 
@@ -62,6 +65,8 @@ public class SecureServer {
             SSLServerSocket sss = (SSLServerSocket) sslServer.createServerSocket(this.port);
             sss.setEnabledCipherSuites(sss.getSupportedCipherSuites());
 
+            sss.setNeedClientAuth(true);
+
             System.out.println("SecureServer running on port " + this.port);
 
             // prepare incoming connections
@@ -75,13 +80,13 @@ public class SecureServer {
             while (!(str = inputStream.readLine()).equals(TERMINATE_CONNECTION)) {
                 System.out.println(str);
                 switch (str) {
-                    case "cmd:upload":
+                    case UPLOAD_COMMAND:
                         receiveFromClient();
                         break;
-                    case "cmd:download":
+                    case DOWNLOAD_COMMAND:
                         sendToClient();
                         break;
-                    case "cmd:delete":
+                    case DELETE_COMMAND:
                         delete();
                         break;
                     default:
@@ -108,7 +113,7 @@ public class SecureServer {
                 try {
                     File file = new File(FOLDER + fileName);
                     if (file.delete()) {
-                        outputStream.println("deleted");
+                        outputStream.println("deleted " + fileName);
                     }
                 } catch (Exception e) {
                     outputStream.println("not deleted");
@@ -161,7 +166,6 @@ public class SecureServer {
 
     private void receiveFromClient() {
         try {
-            System.out.println("client -> server");
             StringBuilder fileContent = new StringBuilder();
             String fileName = null;
             String str;
