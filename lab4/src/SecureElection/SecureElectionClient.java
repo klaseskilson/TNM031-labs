@@ -5,7 +5,6 @@ import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.security.KeyStore;
 import javax.net.ssl.*;
 import SecureElection.Common.Settings;
@@ -24,51 +23,55 @@ public class SecureElectionClient {
     BufferedReader socketIn;
     PrintWriter socketOut;
 
-    /**
-     * setup ssl client
-     * @param addr  the address to connect to
-     */
-    private void setupSSLClient(InetAddress hostAddr) {
+    SSLSocketFactory sslFact;
+
+    private void setup() throws Exception {
+        // load keystores
+        KeyStore ks = KeyStore.getInstance("JCEKS");
+        ks.load(new FileInputStream(CLIENTKEYSTORE),
+                CLIENTPASSWORD.toCharArray());
+        KeyStore ts = KeyStore.getInstance("JCEKS");
+        ts.load(new FileInputStream(CLIENTTRUSTSTORE),
+                CLIENTPASSWORD.toCharArray());
+
+        // setup key managers
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+        kmf.init(ks, CLIENTPASSWORD.toCharArray());
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
+        tmf.init(ts);
+
+        // setup ssl
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+        sslFact = sslContext.getSocketFactory();
+    }
+
+    public void startClient(InetAddress hostAddr, int port) throws Exception{
+        SSLSocket client = (SSLSocket) sslFact.createSocket(hostAddr, port);
+        client.setEnabledCipherSuites(client.getSupportedCipherSuites());
+
+        // setup transmissions
+        socketIn = new BufferedReader(new InputStreamReader(client.getInputStream()));
+        socketOut = new PrintWriter(client.getOutputStream(), true);
+    }
+
+    public static void main(String[] args) {
         try {
-            // load keystores
-            KeyStore ks = KeyStore.getInstance("JCEKS");
-            ks.load(new FileInputStream(CLIENTKEYSTORE),
-                    CLIENTPASSWORD.toCharArray());
-            KeyStore ts = KeyStore.getInstance("JCEKS");
-            ts.load(new FileInputStream(CLIENTTRUSTSTORE),
-                    CLIENTPASSWORD.toCharArray());
-
-            // setup key managers
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
-            kmf.init(ks, CLIENTPASSWORD.toCharArray());
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
-            tmf.init(ts);
-
-            // setup ssl
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
-            SSLSocketFactory sslFact = sslContext.getSocketFactory();
-            SSLSocket client = (SSLSocket) sslFact.createSocket(hostAddr, this.hostPort);
-            client.setEnabledCipherSuites(client.getSupportedCipherSuites());
-
-            // setup transmissions
-            socketIn = new BufferedReader(new InputStreamReader(client.getInputStream()));
-            socketOut = new PrintWriter(client.getOutputStream(), true);
+            SecureElectionClient c = new SecureElectionClient();
+            c.run();
         } catch (Exception e) {
             System.out.println(e);
             e.printStackTrace();
         }
     }
 
-    public static void main(String[] args) {
-        try {
-            // setup connection
-            InetAddress localhost = InetAddress.getLocalHost();
-            setupSSLClient(localhost);
-        } catch (UnknownHostException uhe) {
-            System.out.println(uhe);
-            uhe.printStackTrace();
-        }
+    public void run() throws Exception {
+        // setup connection
+        InetAddress localhost = InetAddress.getLocalHost();
+        setup();
+        // connect to cla
+        startClient(localhost, Settings.CLA_PORT);
 
+        // connect to ctf
     }
 }

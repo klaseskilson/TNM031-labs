@@ -1,7 +1,13 @@
 package SecureElection;
 
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.InetAddress;
+import java.security.KeyStore;
 import java.util.Vector;
-
+import javax.net.ssl.*;
 import SecureElection.Common.Settings;
 import SecureElection.Common.Voter;
 
@@ -17,7 +23,72 @@ public class CentralLegitimizationAgency {
 
     private Vector<Voter> authorizedVoters = new Vector<>();
 
-    public static void main(String[] args) {
+    BufferedReader serverInput, clientInput;
+    PrintWriter serverOutput, clientOutput;
+    SSLSocketFactory sslClientFact;
 
+    private void setup() throws Exception {
+        // load keystores
+        KeyStore ks = KeyStore.getInstance("JCEKS");
+        ks.load(new FileInputStream(CLAKEYSTORE),
+                CLAPASSWORD.toCharArray());
+        KeyStore ts = KeyStore.getInstance("JCEKS");
+        ts.load(new FileInputStream(CLATRUSTSTORE),
+                CLAPASSWORD.toCharArray());
+
+        // setup key/trust managers
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+        kmf.init(ks, CLAPASSWORD.toCharArray());
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
+        tmf.init(ts);
+
+        // setup ssl server
+        SSLContext serverContext = SSLContext.getInstance("TLS");
+        serverContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+        SSLServerSocketFactory sslServer = serverContext.getServerSocketFactory();
+
+        SSLServerSocket sss = (SSLServerSocket) sslServer.createServerSocket(Settings.CLA_PORT);
+        sss.setEnabledCipherSuites(sss.getSupportedCipherSuites());
+
+        // require client auth
+        sss.setNeedClientAuth(true);
+
+        // prepare incoming connections
+        SSLSocket incoming = (SSLSocket) sss.accept();
+        serverInput = new BufferedReader(
+                new InputStreamReader(incoming.getInputStream()));
+        serverOutput = new PrintWriter(incoming.getOutputStream(), true);
+
+        System.out.println("CLA server running on port " + Settings.CLA_PORT);
+
+        // setup ssl client
+        SSLContext clientContext = SSLContext.getInstance("TLS");
+        clientContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+        sslClientFact = clientContext.getSocketFactory();
+
+        System.out.println("CLA client setup.");
+    }
+
+    private void startClient(InetAddress hostAddr, int port) throws Exception {
+        SSLSocket client = (SSLSocket) sslClientFact.createSocket(hostAddr, port);
+        client.setEnabledCipherSuites(client.getSupportedCipherSuites());
+
+        clientInput = new BufferedReader(new InputStreamReader(client.getInputStream()));
+        clientOutput = new PrintWriter(client.getOutputStream(), true);
+    }
+
+
+    public static void main(String[] args) {
+        try {
+            CentralLegitimizationAgency cla = new CentralLegitimizationAgency();
+            cla.run();
+        } catch (Exception e) {
+            System.out.println(e);
+            e.printStackTrace();
+        }
+    }
+
+    public void run() throws Exception {
+        setup();
     }
 }
