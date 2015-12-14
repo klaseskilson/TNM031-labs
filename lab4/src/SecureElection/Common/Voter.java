@@ -2,23 +2,27 @@ package SecureElection.Common;
 
 import java.math.BigInteger;
 import java.security.SecureRandom;
+import java.util.Random;
 
 /**
  * Created by Klas Eskilson on 15-11-16.
  */
 
 public class Voter {
-    public static int BITLENGTH = 128;
-
-    private BigInteger validationNumber, identificationNumber;
-    private int choice;
+    private BigInteger validationNumber;
+    private int choice, id;
 
     public Voter() {
-        this.identificationNumber = BigInteger.probablePrime(BITLENGTH, new SecureRandom());
+        Random r = new Random();
+        this.id = r.nextInt(1000000000);
     }
 
-    public BigInteger getIdentificationNumber() {
-        return identificationNumber;
+    public int getId() {
+        return id;
+    }
+
+    public void setValidationNumber(BigInteger validationNumber) {
+        this.validationNumber = validationNumber;
     }
 
     public void setChoice(int choice) {
