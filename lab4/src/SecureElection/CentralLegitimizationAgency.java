@@ -4,8 +4,11 @@ import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.security.KeyStore;
+import java.security.SecureRandom;
+import java.util.Random;
 import java.util.Vector;
 import javax.net.ssl.*;
 import SecureElection.Common.Settings;
@@ -26,6 +29,7 @@ public class CentralLegitimizationAgency {
     BufferedReader serverInput, clientInput;
     PrintWriter serverOutput, clientOutput;
     SSLSocketFactory sslClientFact;
+    SSLSocket incoming;
 
     private void setup() throws Exception {
         System.out.print("loading keystores... ");
@@ -64,15 +68,54 @@ public class CentralLegitimizationAgency {
         System.out.print("done.\n");
 
         // require client auth
-        sss.setNeedClientAuth(true);
+//        sss.setNeedClientAuth(true);
         System.out.println("CLA server running on port " + Settings.CLA_PORT);
 
         // prepare incoming connections
         System.out.println("Starting server socket IO, accepting connections. ");
-        SSLSocket incoming = (SSLSocket) sss.accept();
+        incoming = (SSLSocket) sss.accept();
         serverInput = new BufferedReader(
                 new InputStreamReader(incoming.getInputStream()));
         serverOutput = new PrintWriter(incoming.getOutputStream(), true);
+    }
+
+    private void receiveConnections() throws Exception {
+        String str = serverInput.readLine();
+        while (!str.equals(Settings.Commands.TERMINATE)) {
+            switch (str) {
+                case Settings.Commands.CLIENT_CTF:
+                    authorizeVoters();
+                    break;
+                case "": break;
+                default:
+                    System.out.println("Unknown command: " + str);
+                    break;
+            }
+
+            if ((str = serverInput.readLine()) == null) {
+                str = "";
+                Thread.sleep(1000);
+            }
+        }
+        incoming.close();
+    }
+
+    private void authorizeVoters() throws Exception {
+        String str;
+        while (!(str = serverInput.readLine())
+                .equals(Settings.Commands.END)) {
+            System.out.println("s: " + str);
+            // remove 'id=' from string and parse as int
+            int id = Integer.parseInt(str.substring(3));
+            Voter v = new Voter(-1, id);
+            if (!authorizedVoters.contains(v) && v.getId() > Settings.MIN_AGE) {
+                v.setValidationNumber(BigInteger.probablePrime(
+                        Settings.VALIDATION_BITLENGTH, new SecureRandom()));
+                authorizedVoters.add(v);
+                serverOutput.println(v.CTFToClient() + '\n' + Settings.Commands.END);
+            }
+
+        }
     }
 
     private void startClient(InetAddress hostAddr, int port) throws Exception {
@@ -97,5 +140,6 @@ public class CentralLegitimizationAgency {
     public void run() throws Exception {
         System.out.println("Setting up CLA...");
         setup();
+        receiveConnections();
     }
 }

@@ -1,13 +1,13 @@
 package SecureElection;
 
-import java.io.BufferedReader;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.security.KeyStore;
+import java.util.Vector;
 import javax.net.ssl.*;
 import SecureElection.Common.Settings;
+import SecureElection.Common.Voter;
 
 /**
  * Created by Klas Eskilson on 15-11-16.
@@ -22,8 +22,8 @@ public class SecureElectionClient {
     // class variables
     BufferedReader socketIn;
     PrintWriter socketOut;
-
     SSLSocketFactory sslFact;
+    Vector<Voter> voters;
 
     private void setup() throws Exception {
         // load keystores
@@ -46,13 +46,56 @@ public class SecureElectionClient {
         sslFact = sslContext.getSocketFactory();
     }
 
-    public void startClient(InetAddress hostAddr, int port) throws Exception{
+    private void startClient(InetAddress hostAddr, int port) throws Exception {
+        System.out.println("Connecting client to " + hostAddr.toString() + ":" + port);
         SSLSocket client = (SSLSocket) sslFact.createSocket(hostAddr, port);
         client.setEnabledCipherSuites(client.getSupportedCipherSuites());
 
         // setup transmissions
         socketIn = new BufferedReader(new InputStreamReader(client.getInputStream()));
         socketOut = new PrintWriter(client.getOutputStream(), true);
+    }
+
+    private void validateVoters(Vector<Voter> theVoters) throws Exception {
+        // send voters to ctf
+        socketOut.println(Settings.Commands.CLIENT_CTF);
+        for (Voter v : theVoters) {
+            socketOut.println(v.clientToCTF());
+            // receive response (validation number) from server
+            String resp;
+            while (!(resp = socketIn.readLine()).equals(Settings.Commands.END)) {
+                // System.out.println(resp);
+                // use the server response to create our validation number
+                BigInteger validationNumber = new BigInteger(resp);
+                if (validationNumber.toString().equals("0")) {
+                    v.setValidationNumber(new BigInteger(resp));
+                }
+            }
+        }
+        socketOut.println(Settings.Commands.END);
+    }
+
+    /**
+     * simple testing function for the secure voting machine
+     * @throws Exception
+     */
+    public void run() throws Exception {
+        // setup connection
+        InetAddress localhost = InetAddress.getLocalHost();
+        setup();
+        // connect to cla
+        startClient(localhost, Settings.CLA_PORT);
+
+        // create and validate voters with the CLA
+        voters = new Vector<>();
+        for (int i = 0; i < 10; ++i) {
+            voters.add(new Voter(i % 3));
+        }
+        validateVoters(voters);
+
+        // receive votes
+        // connect to ctf
+        // send votes
     }
 
     public static void main(String[] args) {
@@ -63,15 +106,5 @@ public class SecureElectionClient {
             System.out.println(e);
             e.printStackTrace();
         }
-    }
-
-    public void run() throws Exception {
-        // setup connection
-        InetAddress localhost = InetAddress.getLocalHost();
-        setup();
-        // connect to cla
-        startClient(localhost, Settings.CLA_PORT);
-
-        // connect to ctf
     }
 }
