@@ -8,7 +8,6 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.security.KeyStore;
 import java.security.SecureRandom;
-import java.util.Random;
 import java.util.Vector;
 import javax.net.ssl.*;
 import SecureElection.Common.Settings;
@@ -42,8 +41,8 @@ public class CentralLegitimizationAgency {
                 CLAPASSWORD.toCharArray());
         System.out.print("done.\n");
 
-        System.out.print("Preparing trust managers... ");
         // setup key/trust managers
+        System.out.print("Preparing trust managers... ");
         KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
         kmf.init(ks, CLAPASSWORD.toCharArray());
         TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
@@ -81,7 +80,7 @@ public class CentralLegitimizationAgency {
 
     private void receiveConnections() throws Exception {
         String str = serverInput.readLine();
-        while (!str.equals(Settings.Commands.TERMINATE)) {
+        while (!str.equals("")) {
             switch (str) {
                 case Settings.Commands.CLIENT_CTF:
                     authorizeVoters();
@@ -102,8 +101,7 @@ public class CentralLegitimizationAgency {
 
     private void authorizeVoters() throws Exception {
         String str;
-        while (!(str = serverInput.readLine())
-                .equals(Settings.Commands.END)) {
+        while (!(str = serverInput.readLine()).equals(Settings.Commands.END)) {
             System.out.println("s: " + str);
             // remove 'id=' from string and parse as int
             int id = Integer.parseInt(str.substring(3));
@@ -119,6 +117,7 @@ public class CentralLegitimizationAgency {
     }
 
     private void startClient(InetAddress hostAddr, int port) throws Exception {
+        System.out.println("Connecting client to " + hostAddr.toString() + ":" + port);
         SSLSocket client = (SSLSocket) sslClientFact.createSocket(hostAddr, port);
         client.setEnabledCipherSuites(client.getSupportedCipherSuites());
 
@@ -140,6 +139,7 @@ public class CentralLegitimizationAgency {
     public void run() throws Exception {
         System.out.println("Setting up CLA...");
         setup();
+//        startClient(InetAddress.getLocalHost(), Settings.CTF_PORT);
         receiveConnections();
     }
 }

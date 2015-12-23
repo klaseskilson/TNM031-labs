@@ -81,10 +81,9 @@ public class SecureElectionClient {
      */
     public void run() throws Exception {
         // setup connection
-        InetAddress localhost = InetAddress.getLocalHost();
         setup();
         // connect to cla
-        startClient(localhost, Settings.CLA_PORT);
+        startClient(InetAddress.getLocalHost(), Settings.CLA_PORT);
 
         // create and validate voters with the CLA
         voters = new Vector<>();
@@ -93,9 +92,9 @@ public class SecureElectionClient {
         }
         validateVoters(voters);
 
-        // receive votes
         // connect to ctf
         // send votes
+        // ask for result
     }
 
     public static void main(String[] args) {
