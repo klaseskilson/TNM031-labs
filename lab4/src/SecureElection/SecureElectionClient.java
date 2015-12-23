@@ -3,10 +3,10 @@ package SecureElection;
 import java.io.*;
 import java.math.BigInteger;
 import java.net.InetAddress;
-import java.security.KeyStore;
-import java.util.Set;
 import java.util.Vector;
 import javax.net.ssl.*;
+
+import SecureElection.Common.Client;
 import SecureElection.Common.Settings;
 import SecureElection.Common.Voter;
 
@@ -23,38 +23,14 @@ public class SecureElectionClient {
     // class variables
     BufferedReader socketIn;
     PrintWriter socketOut;
-    SSLSocketFactory sslFact;
     Vector<Voter> voters;
 
-    private void setup() throws Exception {
-        // load keystores
-        KeyStore ks = KeyStore.getInstance("JCEKS");
-        ks.load(new FileInputStream(CLIENTKEYSTORE),
-                CLIENTPASSWORD.toCharArray());
-        KeyStore ts = KeyStore.getInstance("JCEKS");
-        ts.load(new FileInputStream(CLIENTTRUSTSTORE),
-                CLIENTPASSWORD.toCharArray());
-
-        // setup key managers
-        KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
-        kmf.init(ks, CLIENTPASSWORD.toCharArray());
-        TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
-        tmf.init(ts);
-
-        // setup ssl
-        SSLContext sslContext = SSLContext.getInstance("TLS");
-        sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
-        sslFact = sslContext.getSocketFactory();
-    }
-
-    private void startClient(InetAddress hostAddr, int port) throws Exception {
-        System.out.println("Connecting client to " + hostAddr.toString() + ":" + port);
-        SSLSocket client = (SSLSocket) sslFact.createSocket(hostAddr, port);
-        client.setEnabledCipherSuites(client.getSupportedCipherSuites());
-
+    private void startClient(InetAddress host, int port) throws Exception {
+        Client client = new Client(CLIENTKEYSTORE, CLIENTTRUSTSTORE, CLIENTPASSWORD, host, port);
+        SSLSocket c = client.getSocket();
         // setup transmissions
-        socketIn = new BufferedReader(new InputStreamReader(client.getInputStream()));
-        socketOut = new PrintWriter(client.getOutputStream(), true);
+        socketIn = new BufferedReader(new InputStreamReader(c.getInputStream()));
+        socketOut = new PrintWriter(c.getOutputStream(), true);
     }
 
     private void validateVoters(Vector<Voter> theVoters) throws Exception {
@@ -95,8 +71,6 @@ public class SecureElectionClient {
      * @throws Exception
      */
     public void run() throws Exception {
-        // setup connection
-        setup();
         // connect to cla
         startClient(InetAddress.getLocalHost(), Settings.CLA_PORT);
 

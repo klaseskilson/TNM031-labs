@@ -1,102 +1,37 @@
 package SecureElection;
 
 import java.io.BufferedReader;
-import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.math.BigInteger;
 import java.net.InetAddress;
-import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Vector;
 import javax.net.ssl.*;
+
+import SecureElection.Common.Client;
+import SecureElection.Common.Server;
 import SecureElection.Common.Settings;
 import SecureElection.Common.Voter;
 
-/**
- * Created by Klas Eskilson on 15-11-16.
- */
-
-public class CentralLegitimizationAgency {
+public class CentralLegitimizationAgency implements Runnable {
     // constants
     private static final String CLATRUSTSTORE = Settings.KEYLOCATION + "CLATruststore.ks";
     private static final String CLAKEYSTORE   = Settings.KEYLOCATION + "CLAKeystore.ks";
     private static final String CLAPASSWORD   = "somephrase";
 
-    private Vector<Voter> authorizedVoters = new Vector<>();
+    private Vector<Voter> authorizedVoters;
 
+    SSLSocket incoming;
     BufferedReader serverInput, clientInput;
     PrintWriter serverOutput, clientOutput;
-    SSLSocketFactory sslClientFact;
-    SSLSocket incoming;
 
-    private void setup() throws Exception {
-        System.out.print("loading keystores... ");
-        // load keystores
-        KeyStore ks = KeyStore.getInstance("JCEKS");
-        ks.load(new FileInputStream(CLAKEYSTORE),
-                CLAPASSWORD.toCharArray());
-        KeyStore ts = KeyStore.getInstance("JCEKS");
-        ts.load(new FileInputStream(CLATRUSTSTORE),
-                CLAPASSWORD.toCharArray());
-        System.out.print("done.\n");
-
-        // setup key/trust managers
-        System.out.print("Preparing trust managers... ");
-        KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
-        kmf.init(ks, CLAPASSWORD.toCharArray());
-        TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
-        tmf.init(ts);
-        System.out.print("done.\n");
-
-        // setup ssl server
-        System.out.print("Starting server... ");
-        SSLContext serverContext = SSLContext.getInstance("TLS");
-        serverContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
-        SSLServerSocketFactory sslServer = serverContext.getServerSocketFactory();
-
-        SSLServerSocket sss = (SSLServerSocket) sslServer.createServerSocket(Settings.CLA_PORT);
-        sss.setEnabledCipherSuites(sss.getSupportedCipherSuites());
-        System.out.print("done.\n");
-
-        // setup ssl client
-        System.out.print("Setting up SSL Client... ");
-        SSLContext clientContext = SSLContext.getInstance("TLS");
-        clientContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
-        sslClientFact = clientContext.getSocketFactory();
-        System.out.print("done.\n");
-
-        // require client auth
-        sss.setNeedClientAuth(true);
-        System.out.println("CLA server running on port " + Settings.CLA_PORT);
-
-        // prepare incoming connections
-        System.out.println("Starting server socket IO, accepting connections. ");
-        incoming = (SSLSocket) sss.accept();
-        serverInput = new BufferedReader(
-                new InputStreamReader(incoming.getInputStream()));
-        serverOutput = new PrintWriter(incoming.getOutputStream(), true);
+    public CentralLegitimizationAgency(SSLSocket incoming) {
+        this.incoming = incoming;
     }
 
-    private void receiveConnections() throws Exception {
-        String str = serverInput.readLine();
-        while (!str.equals(Settings.Commands.TERMINATE)) {
-            switch (str) {
-                case Settings.Commands.CLIENT_CTF:
-                    authorizeVoters();
-                    break;
-                case "": break;
-                default:
-                    System.out.println("Unknown command: " + str);
-                    break;
-            }
-
-            if ((str = serverInput.readLine()) == null) {
-                str = "";
-                Thread.sleep(1000);
-            }
-        }
-        incoming.close();
+    public void setAuthorizedVoters(Vector<Voter> authorizedVoters) {
+        this.authorizedVoters = authorizedVoters;
     }
 
     private void authorizeVoters() throws Exception {
@@ -110,7 +45,7 @@ public class CentralLegitimizationAgency {
         clientOutput.println(Settings.Commands.TERMINATE);
     }
 
-    private String registerVoter(Voter v) {
+    private String registerVoter(Voter v) throws Exception {
         if (!authorizedVoters.contains(v) && v.getId() > Settings.MIN_AGE) {
             v.setValidationNumber(BigInteger.probablePrime(
                     Settings.VALIDATION_BITLENGTH, new SecureRandom()));
@@ -123,36 +58,62 @@ public class CentralLegitimizationAgency {
         return v.fromCTF();
     }
 
-    private void sendToCTF(String s) {
+    private void sendToCTF(String s) throws Exception {
         clientOutput.println(Settings.Commands.REGISTER_VALID);
         clientOutput.println(s);
         clientOutput.println(Settings.Commands.END);
     }
 
-    private void startClient(InetAddress hostAddr, int port) throws Exception {
-        System.out.println("Connecting client to " + hostAddr.toString() + ":" + port);
-        SSLSocket client = (SSLSocket) sslClientFact.createSocket(hostAddr, port);
-        client.setEnabledCipherSuites(client.getSupportedCipherSuites());
-
-        clientInput = new BufferedReader(new InputStreamReader(client.getInputStream()));
-        clientOutput = new PrintWriter(client.getOutputStream(), true);
+    private void startClient(InetAddress host, int port) throws Exception {
+        Client client = new Client(CLAKEYSTORE, CLATRUSTSTORE, CLAPASSWORD, host, port);
+        SSLSocket c = client.getSocket();
+        clientInput = new BufferedReader(new InputStreamReader(c.getInputStream()));
+        clientOutput = new PrintWriter(c.getOutputStream(), true);
     }
 
-
-    public static void main(String[] args) {
+    public void run() {
         try {
-            CentralLegitimizationAgency cla = new CentralLegitimizationAgency();
-            cla.run();
+            // prepare incoming connections
+            serverInput = new BufferedReader(
+                    new InputStreamReader(incoming.getInputStream()));
+            serverOutput = new PrintWriter(incoming.getOutputStream(), true);
+            startClient(InetAddress.getLocalHost(), Settings.CTF_PORT);
+            String str = serverInput.readLine();
+            while (str != null) {
+                switch (str) {
+                    case Settings.Commands.CLIENT_CTF:
+                        authorizeVoters();
+                        break;
+                    case "": break;
+                    default:
+                        System.out.println("Unknown command: " + str);
+                        break;
+                }
+
+                str = serverInput.readLine();
+            }
+            incoming.close();
         } catch (Exception e) {
-            System.out.println(e);
             e.printStackTrace();
         }
     }
 
-    public void run() throws Exception {
-        System.out.println("Setting up CLA...");
-        setup();
-        startClient(InetAddress.getLocalHost(), Settings.CTF_PORT);
-        receiveConnections();
+    public static void main(String[] args) {
+        try {
+            Server s = new Server(CLAKEYSTORE, CLATRUSTSTORE, CLAPASSWORD, Settings.CLA_PORT);
+            // shared resource for all threads
+            Vector<Voter> voters = new Vector<>();
+
+            while (true) {
+                SSLSocket socket = (SSLSocket) s.getServerSocket().accept();
+                System.out.println("New client connected");
+                CentralLegitimizationAgency c = new CentralLegitimizationAgency(socket);
+                c.setAuthorizedVoters(voters);
+                Thread t = new Thread(c);
+                t.start();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
