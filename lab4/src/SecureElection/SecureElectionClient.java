@@ -4,6 +4,7 @@ import java.io.*;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.security.KeyStore;
+import java.util.Set;
 import java.util.Vector;
 import javax.net.ssl.*;
 import SecureElection.Common.Settings;
@@ -67,12 +68,26 @@ public class SecureElectionClient {
                 // System.out.println(resp);
                 // use the server response to create our validation number
                 BigInteger validationNumber = new BigInteger(resp);
-                if (validationNumber.toString().equals("0")) {
+                if (!validationNumber.toString().equals("0")) {
                     v.setValidationNumber(new BigInteger(resp));
                 }
             }
         }
         socketOut.println(Settings.Commands.END);
+    }
+
+    private void sendVote(Voter v) {
+        socketOut.println(Settings.Commands.REGISTER_VOTE);
+        socketOut.println(v.toVote());
+        socketOut.println(Settings.Commands.END);
+    }
+
+    private void getResult() throws Exception {
+        socketOut.println(Settings.Commands.REQUEST_RESULT);
+        String resp;
+        while (!(resp = socketIn.readLine()).equals(Settings.Commands.END)) {
+            System.out.println(resp);
+        }
     }
 
     /**
@@ -93,8 +108,15 @@ public class SecureElectionClient {
         validateVoters(voters);
 
         // connect to ctf
+        startClient(InetAddress.getLocalHost(), Settings.CTF_PORT);
+
         // send votes
+        for (Voter v : voters) {
+            sendVote(v);
+        }
+
         // ask for result
+        getResult();
     }
 
     public static void main(String[] args) {

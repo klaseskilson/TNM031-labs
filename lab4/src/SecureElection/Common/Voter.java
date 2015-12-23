@@ -28,6 +28,12 @@ public class Voter {
         this.choice = choice;
     }
 
+    public Voter(BigInteger validationNumber, int choice, int id) {
+        this.validationNumber = validationNumber;
+        this.choice = choice;
+        this.id = id;
+    }
+
     public int getId() {
         return id;
     }
@@ -48,8 +54,12 @@ public class Voter {
         return "id=" + id;
     }
 
-    public String CTFToClient() {
+    public String fromCTF() {
         return validationNumber.toString();
+    }
+
+    public String toVote() {
+        return id + "-" + validationNumber.toString() + "-" + choice;
     }
 
     @Override

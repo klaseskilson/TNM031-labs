@@ -67,7 +67,7 @@ public class CentralLegitimizationAgency {
         System.out.print("done.\n");
 
         // require client auth
-//        sss.setNeedClientAuth(true);
+        sss.setNeedClientAuth(true);
         System.out.println("CLA server running on port " + Settings.CLA_PORT);
 
         // prepare incoming connections
@@ -80,7 +80,7 @@ public class CentralLegitimizationAgency {
 
     private void receiveConnections() throws Exception {
         String str = serverInput.readLine();
-        while (!str.equals("")) {
+        while (!str.equals(Settings.Commands.TERMINATE)) {
             switch (str) {
                 case Settings.Commands.CLIENT_CTF:
                     authorizeVoters();
@@ -105,15 +105,28 @@ public class CentralLegitimizationAgency {
             System.out.println("s: " + str);
             // remove 'id=' from string and parse as int
             int id = Integer.parseInt(str.substring(3));
-            Voter v = new Voter(-1, id);
-            if (!authorizedVoters.contains(v) && v.getId() > Settings.MIN_AGE) {
-                v.setValidationNumber(BigInteger.probablePrime(
-                        Settings.VALIDATION_BITLENGTH, new SecureRandom()));
-                authorizedVoters.add(v);
-                serverOutput.println(v.CTFToClient() + '\n' + Settings.Commands.END);
-            }
-
+            registerVoter(new Voter(-1, id));
         }
+        clientOutput.println(Settings.Commands.TERMINATE);
+    }
+
+    private String registerVoter(Voter v) {
+        if (!authorizedVoters.contains(v) && v.getId() > Settings.MIN_AGE) {
+            v.setValidationNumber(BigInteger.probablePrime(
+                    Settings.VALIDATION_BITLENGTH, new SecureRandom()));
+            authorizedVoters.add(v);
+            // respond to client and send to CTF
+            serverOutput.println(v.fromCTF() + '\n' + Settings.Commands.END);
+            sendToCTF(v.fromCTF());
+        }
+
+        return v.fromCTF();
+    }
+
+    private void sendToCTF(String s) {
+        clientOutput.println(Settings.Commands.REGISTER_VALID);
+        clientOutput.println(s);
+        clientOutput.println(Settings.Commands.END);
     }
 
     private void startClient(InetAddress hostAddr, int port) throws Exception {
@@ -139,7 +152,7 @@ public class CentralLegitimizationAgency {
     public void run() throws Exception {
         System.out.println("Setting up CLA...");
         setup();
-//        startClient(InetAddress.getLocalHost(), Settings.CTF_PORT);
+        startClient(InetAddress.getLocalHost(), Settings.CTF_PORT);
         receiveConnections();
     }
 }

@@ -1,6 +1,7 @@
 package SecureElection;
 
 import SecureElection.Common.Settings;
+import SecureElection.Common.Voter;
 
 import javax.net.ssl.*;
 import java.io.BufferedReader;
@@ -10,8 +11,7 @@ import java.io.PrintWriter;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.security.KeyStore;
-import java.util.Set;
-import java.util.Vector;
+import java.util.*;
 
 /**
  * Created by Klas Eskilson on 15-11-16.
@@ -25,11 +25,12 @@ public class CentralTabulatingFacility {
 
     // string versions of CLA's validation numbers
     Vector<String> authorizedVoters = new Vector<>();
+    Vector<Voter> voters = new Vector<>();
+    Map<Integer, Integer> votes = new HashMap<Integer, Integer>();
 
     // server/client socket and IO vars
-    BufferedReader serverInput, clientInput;
-    PrintWriter serverOutput, clientOutput;
-    SSLSocketFactory sslClientFact;
+    BufferedReader serverInput;
+    PrintWriter serverOutput;
     SSLServerSocket sss;
 
     private void setup() throws Exception {
@@ -61,15 +62,8 @@ public class CentralTabulatingFacility {
         sss = (SSLServerSocket) sslServer.createServerSocket(Settings.CTF_PORT);
         sss.setEnabledCipherSuites(sss.getSupportedCipherSuites());
 
-        // setup ssl client
-        System.out.print("Setting up SSL Client... ");
-        SSLContext clientContext = SSLContext.getInstance("TLS");
-        clientContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
-        sslClientFact = clientContext.getSocketFactory();
-        System.out.print("done.\n");
-
         // require client auth
-//        sss.setNeedClientAuth(true);
+        sss.setNeedClientAuth(true);
         System.out.println("CTF server running on port " + Settings.CTF_PORT);
     }
 
@@ -83,6 +77,15 @@ public class CentralTabulatingFacility {
         String str = serverInput.readLine();
         while (!str.equals(Settings.Commands.TERMINATE)) {
             switch (str) {
+                case Settings.Commands.REGISTER_VALID:
+                    registerValidationNumber();
+                    break;
+                case Settings.Commands.REGISTER_VOTE:
+                    registerVote();
+                    break;
+                case Settings.Commands.REQUEST_RESULT:
+                    sendResult();
+                    break;
                 default:
                     System.out.println("Unknown command: " + str);
                     break;
@@ -96,13 +99,48 @@ public class CentralTabulatingFacility {
         incoming.close();
     }
 
-    private void startClient(InetAddress hostAddr, int port) throws Exception {
-        System.out.println("Connecting client to " + hostAddr.toString() + ":" + port);
-        SSLSocket client = (SSLSocket) sslClientFact.createSocket(hostAddr, port);
-        client.setEnabledCipherSuites(client.getSupportedCipherSuites());
+    private void registerValidationNumber() throws Exception {
+        String str = serverInput.readLine();
+        System.out.println("s: " + str);
+        if (!authorizedVoters.contains(str)) {
+            authorizedVoters.add(str);
+        }
+    }
 
-        clientInput = new BufferedReader(new InputStreamReader(client.getInputStream()));
-        clientOutput = new PrintWriter(client.getOutputStream(), true);
+    private void registerVote() throws Exception {
+        String str = serverInput.readLine();
+        System.out.println("s: " + str);
+        String[] s = str.split("-");
+        if (authorizedVoters.contains(s[1])) {
+            int id = Integer.parseInt(s[0]),
+                choice = Integer.parseInt(s[2]);
+            BigInteger validationNumber = new BigInteger(s[1]);
+            Voter v = new Voter(validationNumber, choice, id);
+            if (!voters.contains(v)) {
+                System.out.println(v);
+                voters.add(v);
+                // save vote
+                votes.put(choice, votes.getOrDefault(choice, 0) + 1);
+            }
+        }
+    }
+
+    private void sendResult() throws Exception {
+        int total = voters.size();
+        serverOutput.println("Total votes: " + total);
+        // get all votes and calculate their percentage
+        for (Map.Entry<Integer, Integer> v : votes.entrySet()) {
+            float res = 100 * v.getValue() / total;
+            serverOutput.println("Alternative " + v.getKey() + ": "
+                    + v.getValue() + " (" +  res + "%)");
+        }
+        serverOutput.println(Settings.Commands.END);
+    }
+
+    public void run() throws Exception {
+        setup();
+        receiveConnections();
+        receiveConnections();
     }
 
     public static void main(String[] args) {
@@ -113,12 +151,5 @@ public class CentralTabulatingFacility {
             System.out.println(e);
             e.printStackTrace();
         }
-    }
-
-    public void run() throws Exception {
-        setup();
-        startClient(InetAddress.getLocalHost(), Settings.CLA_PORT);
-//        clientOutput.println(Settings.Commands.TERMINATE);
-        receiveConnections();
     }
 }

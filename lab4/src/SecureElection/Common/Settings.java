@@ -14,5 +14,8 @@ public class Settings {
         public static final String END = "cmd:end";
         public static final String TERMINATE = "cmd:die";
         public static final String CLIENT_CTF = "cmd:client_ctf";
+        public static final String REGISTER_VALID = "cmd:reg_valid";
+        public static final String REGISTER_VOTE = "cmd:reg_vote";
+        public static final String REQUEST_RESULT = "cmd:req_res";
     }
 }
