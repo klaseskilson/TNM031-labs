@@ -62,6 +62,10 @@ public class Voter {
         return id + "-" + validationNumber.toString() + "-" + choice;
     }
 
+    public String idAndVote() {
+        return "ID: " + id + ", Vote: " + choice;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

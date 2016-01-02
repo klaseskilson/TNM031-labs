@@ -78,6 +78,10 @@ public class CentralTabulatingFacility implements Runnable {
             serverOutput.println("Alternative " + v.getKey() + ": "
                     + v.getValue() + " (" +  res + "%)");
         }
+        serverOutput.println("The voters:");
+        for (Voter v : voters) {
+            serverOutput.println(v.idAndVote());
+        }
         serverOutput.println(Settings.Commands.END);
     }
 
@@ -123,6 +127,9 @@ public class CentralTabulatingFacility implements Runnable {
             while (true) {
                 SSLSocket socket = (SSLSocket) s.getServerSocket().accept();
                 System.out.println("New client connected");
+                // For every client connection, create a new threaded instance of
+                // the CTF and make sure that it shares the same votes and voters
+                // as the rest.
                 CentralTabulatingFacility c = new CentralTabulatingFacility(socket);
                 c.setAuthorizedVoters(authorizedVoters);
                 c.setVoters(voters);
